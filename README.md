@@ -6,13 +6,15 @@ Before using the video extractor, ensure you have the following software install
  - ROS2 (Foxy, Galactic, or any later distribution should work). Tested with Humble.
  - Python 3.6 or later
  - OpenCV (used for image operations)
- - ffmpeg (used for video compilation)
+ - **ffmpeg** (used for video compilation)
 
 ## Installation
 1. Install ROS2: Follow the instructions for your operating system on the official ROS2 website
 2. Install Python dependencies:
-```pip3 install opencv-python-headless```
-3. Install ffmpeg:
+```bash
+pip3 install opencv-python-headless
+```
+4. Install ffmpeg:
 ```bash
 sudo apt update
 sudo apt install ffmpeg
