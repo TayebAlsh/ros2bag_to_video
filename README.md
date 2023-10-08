@@ -13,11 +13,15 @@ Before using the video extractor, ensure you have the following software install
 2. Install Python dependencies:
 ```pip3 install opencv-python-headless```
 3. Install ffmpeg:
-```sudo apt update```
-```sudo apt install ffmpeg```
+```bash
+sudo apt update
+sudo apt install ffmpeg
+```
 ## Usage
 Clone the repo, and run the script
-```python3 convert.py /path/to/your_bag_file.db3```
+```bash
+python3 convert.py /path/to/your_bag_file.db3
+```
 
 Once executed, the script will:
 - Extract individual frames from the specified bag file and save them to a ./frames directory.
