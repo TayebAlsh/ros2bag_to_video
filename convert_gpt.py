@@ -1,39 +1,44 @@
+import os
 import cv2
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import CompressedImage
 from cv_bridge import CvBridge
 import subprocess
-import os
 import sys
 
 class ImageExtractor(Node):
-    def __init__(self, cam1_output_directory='./cam1_frames', cam2_output_directory='./cam2_frames'):
+    def __init__(self):
         super().__init__('image_extractor')
         self.bridge = CvBridge()
         self.cam1_frame_num = 0
         self.cam2_frame_num = 0
-        self.cam1_output_directory = cam1_output_directory
-        self.cam2_output_directory = cam2_output_directory
 
-        # Create the directories if they don't exist
-        os.makedirs(self.cam1_output_directory, exist_ok=True)
-        os.makedirs(self.cam2_output_directory, exist_ok=True)
-        
+        fps = 60  # Set the frame rate to 60 fps
+
+        self.cam1_video_writer = cv2.VideoWriter(
+            'cam1_output.mp4', cv2.VideoWriter_fourcc(*'mp4v'), fps, (640, 480)
+        )
+        self.cam2_video_writer = cv2.VideoWriter(
+            'cam2_output.mp4', cv2.VideoWriter_fourcc(*'mp4v'), fps, (640, 480)
+        )
+
         self.create_subscription(CompressedImage, '/cam1/camera/image_raw/compressed', self.cam1_image_callback, 10)
         self.create_subscription(CompressedImage, '/cam2/camera/image_raw/compressed', self.cam2_image_callback, 10)
 
     def cam1_image_callback(self, msg):
         cv_image = self.bridge.compressed_imgmsg_to_cv2(msg)
-        frame_path = os.path.join(self.cam1_output_directory, f'frame_{self.cam1_frame_num:04d}.png')
-        cv2.imwrite(frame_path, cv_image)
+        self.cam1_video_writer.write(cv_image)
         self.cam1_frame_num += 1
 
     def cam2_image_callback(self, msg):
         cv_image = self.bridge.compressed_imgmsg_to_cv2(msg)
-        frame_path = os.path.join(self.cam2_output_directory, f'frame_{self.cam2_frame_num:04d}.png')
-        cv2.imwrite(frame_path, cv_image)
+        self.cam2_video_writer.write(cv_image)
         self.cam2_frame_num += 1
+
+    def __del__(self):
+        self.cam1_video_writer.release()
+        self.cam2_video_writer.release()
 
 def extract_frames_from_bag(bag_path):
     rclpy.init()
@@ -51,7 +56,7 @@ def extract_frames_from_bag(bag_path):
 def convert_frames_to_video(frame_dir, output_video_path):
     cmd = [
         'ffmpeg',
-        '-framerate', '30',
+        '-framerate', '60',  # Set the frame rate to 60 fps
         '-i', os.path.join(frame_dir, 'frame_%04d.png'),
         '-c:v', 'libx264',
         '-profile:v', 'high',
