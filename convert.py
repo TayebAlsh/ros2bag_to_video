@@ -30,7 +30,7 @@ def extract_frames_from_bag(bag_path):
     node = ImageExtractor()
     
     # Play the bag using subprocess
-    process = subprocess.Popen(['ros2', 'bag', 'play', bag_path])
+    process = subprocess.Popen(['ros2', 'bag', 'play', bag_path, '--read-ahead-queue-size', '1000'])
     
     # Wait for the bag to finish playing
     while process.poll() is None:
