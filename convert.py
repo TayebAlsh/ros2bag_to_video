@@ -1,59 +1,67 @@
-import cv2
-import rclpy
 from rclpy.node import Node
+import rclpy
 from sensor_msgs.msg import CompressedImage
 from cv_bridge import CvBridge
 import subprocess
 import os
 import sys
+import cv2
 
 class ImageExtractor(Node):
-    def __init__(self, output_directory='./frames'):
+    def __init__(self, bag_path, fps=30):
         super().__init__('image_extractor')
         self.bridge = CvBridge()
         self.frame_num = 0
-        self.output_directory = output_directory
 
+        # Use the bag file directory for output
+        self.output_directory = os.path.dirname(bag_path)
+        
         # Create the directory if it doesn't exist
         os.makedirs(self.output_directory, exist_ok=True)
         
-        self.create_subscription(CompressedImage, '/cam1/camera/image_raw/compressed', self.image_callback, 10)
+        self.video_output_cam1 = os.path.join(self.output_directory, 'output_cam1.mp4')
+        self.video_output_cam2 = os.path.join(self.output_directory, 'output_cam2.mp4')
+        
+        self.out_cam1 = None
+        self.out_cam2 = None
+        self.fps = fps
 
-    def image_callback(self, msg):
+        self.create_subscription(CompressedImage, '/cam1/camera/image_raw/compressed', self.image_callback_cam1, 10)
+        self.create_subscription(CompressedImage, '/cam2/camera/image_raw/compressed', self.image_callback_cam2, 10)
+
+    def image_callback_cam1(self, msg):
         cv_image = self.bridge.compressed_imgmsg_to_cv2(msg)
-        frame_path = os.path.join(self.output_directory, f'frame_{self.frame_num:04d}.png')
-        cv2.imwrite(frame_path, cv_image)
-        self.frame_num += 1
+        if self.out_cam1 is None:
+            height, width, _ = cv_image.shape
+            self.out_cam1 = cv2.VideoWriter(self.video_output_cam1, cv2.VideoWriter_fourcc(*'mp4v'), self.fps, (width, height))
+        self.out_cam1.write(cv_image)
+
+    def image_callback_cam2(self, msg):
+        cv_image = self.bridge.compressed_imgmsg_to_cv2(msg)
+        if self.out_cam2 is None:
+            height, width, _ = cv_image.shape
+            self.out_cam2 = cv2.VideoWriter(self.video_output_cam2, cv2.VideoWriter_fourcc(*'mp4v'), self.fps, (width, height))
+        self.out_cam2.write(cv_image)
+
+    def close_writers(self):
+        if self.out_cam1 is not None:
+            self.out_cam1.release()
+        if self.out_cam2 is not None:
+            self.out_cam2.release()
 
 def extract_frames_from_bag(bag_path):
     rclpy.init()
-    node = ImageExtractor()
+    node = ImageExtractor(bag_path)
     
     # Play the bag using subprocess
-    process = subprocess.Popen(['ros2', 'bag', 'play', bag_path, '--read-ahead-queue-size', '1000'])
+    process = subprocess.Popen(['ros2', 'bag', 'play', bag_path])
     
     # Wait for the bag to finish playing
     while process.poll() is None:
         rclpy.spin_once(node)
-
-    rclpy.shutdown()
-
-def convert_frames_to_video(frame_dir, output_video_path):
-    cmd = [
-        'ffmpeg',
-        '-framerate', '30',
-        '-i', os.path.join(frame_dir, 'frame_%04d.png'),
-        '-c:v', 'libx264',
-        '-profile:v', 'high',
-        '-crf', '20',
-        '-pix_fmt', 'yuv420p',
-        output_video_path
-    ]
-
-    result = subprocess.run(cmd, capture_output=True, text=True)
-    if result.returncode != 0:
-        print("Error executing ffmpeg:")
-        print(result.stderr)
+    
+    # Close video writers
+    node.close_writers()
 
 if __name__ == '__main__':
     if len(sys.argv) < 2:  # Check if a bag path was provided
@@ -62,8 +70,4 @@ if __name__ == '__main__':
 
     bag_path = sys.argv[1]
 
-    # The output file 
-    output_video_path = "output_video.mp4"
-    
     extract_frames_from_bag(bag_path)
-    convert_frames_to_video('./frames', output_video_path)
